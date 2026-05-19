@@ -6,9 +6,11 @@ import Editor from '@/components/Editor';
 import Preview from '@/components/Preview';
 import TerminalLog from '@/components/Terminal';
 import { level1 } from '@/content/levels/level1';
+import { level2 } from '@/content/levels/level2';
+import { level3 } from '@/content/levels/level3';
 import type { Level, LogEntry } from '@/types';
 
-const LEVELS: Level[] = [level1];
+const LEVELS: Level[] = [level1, level2, level3];
 
 function formatTime(): string {
   const d = new Date();
@@ -26,6 +28,7 @@ export default function HomePage() {
   const [code, setCode] = useState<string>('');
   const [logs, setLogs] = useState<LogEntry[]>(INITIAL_LOGS);
   const [completedIds, setCompletedIds] = useState<string[]>([]);
+  const [unlockedIds, setUnlockedIds] = useState<string[]>([LEVELS[0].id]);
 
   const activeLevel = LEVELS.find((l) => l.id === activeLevelId) ?? null;
 
@@ -54,6 +57,7 @@ export default function HomePage() {
         levels={LEVELS}
         activeLevelId={activeLevelId}
         completedIds={completedIds}
+        unlockedIds={unlockedIds}
         onSelect={handleSelectLevel}
       />
 

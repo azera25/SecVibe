@@ -6,10 +6,11 @@ type SidebarProps = {
   levels: Level[];
   activeLevelId: string | null;
   completedIds: string[];
+  unlockedIds: string[];
   onSelect: (id: string) => void;
 };
 
-export default function Sidebar({ levels, activeLevelId, completedIds, onSelect }: SidebarProps) {
+export default function Sidebar({ levels, activeLevelId, completedIds, unlockedIds, onSelect }: SidebarProps) {
   return (
     <>
       <button
@@ -29,7 +30,8 @@ export default function Sidebar({ levels, activeLevelId, completedIds, onSelect 
           {levels.map((level) => {
             const isActive = level.id === activeLevelId;
             const isCompleted = completedIds.includes(level.id);
-            const isLocked = !isActive && !isCompleted;
+            const isUnlocked = unlockedIds.includes(level.id);
+            const isLocked = !isActive && !isCompleted && !isUnlocked;
 
             let Icon = PlayCircle;
             let iconColor = 'text-gray-500';
@@ -39,6 +41,9 @@ export default function Sidebar({ levels, activeLevelId, completedIds, onSelect 
             } else if (isActive) {
               Icon = PlayCircle;
               iconColor = 'text-hacker-secondary';
+            } else if (isUnlocked) {
+              Icon = PlayCircle;
+              iconColor = 'text-gray-400';
             } else {
               Icon = Lock;
               iconColor = 'text-gray-600';
@@ -53,7 +58,8 @@ export default function Sidebar({ levels, activeLevelId, completedIds, onSelect 
                   'flex w-full items-center gap-3 border-l-2 px-5 py-3 text-left text-sm transition-colors',
                   isActive
                     ? 'border-l-hacker-accent bg-hacker-accent-dim text-hacker-accent'
-                    : 'border-l-transparent text-gray-400 hover:bg-hacker-surface hover:text-gray-200',
+                    : 'border-l-transparent text-gray-400',
+                  !isLocked && 'hover:bg-hacker-surface hover:text-gray-200',
                   isLocked && 'cursor-not-allowed opacity-50',
                 )}
               >
