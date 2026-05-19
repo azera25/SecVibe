@@ -1,12 +1,31 @@
+'use client';
+
+import Sidebar from '@/components/Sidebar';
+import Editor from '@/components/Editor';
+import Preview from '@/components/Preview';
+import Terminal from '@/components/Terminal';
+
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
-      <div className="max-w-4xl w-full rounded-3xl border border-slate-700 bg-slate-900/80 p-10 shadow-2xl shadow-slate-950/20">
-        <h1 className="text-4xl font-semibold mb-4">欢迎来到 SecVibe</h1>
-        <p className="text-lg leading-8 text-slate-300">
-          一个面向初学者的网络安全互动教学平台。这里将逐步加入挑战、实验室、AI 助手和可视化终端。
-        </p>
-      </div>
-    </main>
+    <div className="flex h-full">
+      <Sidebar />
+
+      <main className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+        <section className="flex flex-1 flex-col overflow-hidden border-b border-hacker-border p-2 lg:border-b-0 lg:border-r lg:p-3">
+          <Editor />
+        </section>
+
+        <section className="flex flex-1 flex-col overflow-hidden lg:max-w-[40%]">
+          <div className="flex flex-1 flex-col gap-0">
+            <div className="flex-1 overflow-hidden p-2 pb-1 lg:p-3 lg:pb-1.5">
+              <Preview />
+            </div>
+            <div className="flex-1 overflow-hidden p-2 pt-1 lg:p-3 lg:pt-1.5">
+              <Terminal />
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
   );
 }
