@@ -1,25 +1,15 @@
 import { Lock, CheckCircle2, PlayCircle, ChevronLeft, Menu } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import type { Level } from '@/types';
 
-const LEVELS = [
-  { id: 1, label: '关卡 1', status: 'completed' as const },
-  { id: 2, label: '关卡 2', status: 'active' as const },
-  { id: 3, label: '关卡 3', status: 'locked' as const },
-];
-
-const STATUS_ICON = {
-  completed: CheckCircle2,
-  active: PlayCircle,
-  locked: Lock,
+type SidebarProps = {
+  levels: Level[];
+  activeLevelId: string | null;
+  completedIds: string[];
+  onSelect: (id: string) => void;
 };
 
-const STATUS_COLOR = {
-  completed: 'text-hacker-accent',
-  active: 'text-hacker-secondary',
-  locked: 'text-gray-600',
-};
-
-export default function Sidebar() {
+export default function Sidebar({ levels, activeLevelId, completedIds, onSelect }: SidebarProps) {
   return (
     <>
       <button
@@ -36,22 +26,39 @@ export default function Sidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-3">
-          {LEVELS.map((level) => {
-            const Icon = STATUS_ICON[level.status];
-            const isActive = level.status === 'active';
+          {levels.map((level) => {
+            const isActive = level.id === activeLevelId;
+            const isCompleted = completedIds.includes(level.id);
+            const isLocked = !isActive && !isCompleted;
+
+            let Icon = PlayCircle;
+            let iconColor = 'text-gray-500';
+            if (isCompleted) {
+              Icon = CheckCircle2;
+              iconColor = 'text-hacker-accent';
+            } else if (isActive) {
+              Icon = PlayCircle;
+              iconColor = 'text-hacker-secondary';
+            } else {
+              Icon = Lock;
+              iconColor = 'text-gray-600';
+            }
 
             return (
               <button
                 key={level.id}
+                disabled={isLocked}
+                onClick={() => onSelect(level.id)}
                 className={cn(
                   'flex w-full items-center gap-3 border-l-2 px-5 py-3 text-left text-sm transition-colors',
                   isActive
                     ? 'border-l-hacker-accent bg-hacker-accent-dim text-hacker-accent'
                     : 'border-l-transparent text-gray-400 hover:bg-hacker-surface hover:text-gray-200',
+                  isLocked && 'cursor-not-allowed opacity-50',
                 )}
               >
-                <Icon size={16} className={cn('flex-shrink-0', STATUS_COLOR[level.status])} />
-                <span>{level.label}</span>
+                <Icon size={16} className={cn('flex-shrink-0', iconColor)} />
+                <span>{level.title}</span>
               </button>
             );
           })}
