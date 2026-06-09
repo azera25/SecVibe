@@ -14,7 +14,11 @@ export type VulnerabilityType =
   | 'command-injection'
   | 'dom-xss'
   | 'csrf'
+  | 'idor'
   | string;
+
+/** 攻防状态 */
+export type AttackStatus = 'idle' | 'pending' | 'secure' | 'hacked';
 
 export type Level = {
   id: string;
@@ -27,4 +31,8 @@ export type Level = {
   vulnerabilityType: VulnerabilityType;
   /** 难度等级 */
   difficulty: Difficulty;
+  /** 任务目标描述 */
+  objective: string;
+  /** 需要保护的敏感信息（在情报板中展示） */
+  protectedInfo: string;
 };

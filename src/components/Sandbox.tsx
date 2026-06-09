@@ -92,12 +92,16 @@ export default function Sandbox({
   const startVerdictTimer = useCallback(() => {
     if (verdictTimer.current) clearTimeout(verdictTimer.current);
     judgedRef.current = false;
+    console.log('[Sandbox] verdict timer started (1200ms)');
 
-    // Give iframe 1.2 s to execute all scripts including the attack payload
     verdictTimer.current = setTimeout(() => {
+      console.log('[Sandbox] verdict timer FIRED, judgedRef:', judgedRef.current);
       if (!judgedRef.current) {
         judgedRef.current = true;
+        console.log('[Sandbox] calling onSecure');
         onSecure?.();
+      } else {
+        console.log('[Sandbox] already judged, skipping onSecure');
       }
     }, 1200);
   }, [onSecure]);
@@ -106,21 +110,28 @@ export default function Sandbox({
 
   const handleMessage = useCallback(
     (event: MessageEvent) => {
-      if (event.source !== iframeRef.current?.contentWindow) return;
-
       const msg = event.data as SandboxMessage;
       if (msg?.source !== 'sandbox') return;
+
+      console.log('[Sandbox] msg received:', msg.type, 'attackPayload:', !!attackPayload);
 
       switch (msg.type) {
         case 'SANDBOX_READY':
           onSandboxReady?.();
-          // Payload already set — start the verdict countdown
-          if (attackPayload) startVerdictTimer();
+          console.log('[Sandbox] SANDBOX_READY, attackPayload:', !!attackPayload);
+          if (attackPayload) {
+            console.log('[Sandbox] starting verdict timer');
+            startVerdictTimer();
+          } else {
+            console.log('[Sandbox] no attackPayload, timer NOT started');
+          }
           break;
 
         case 'ATTACK_DETECTED':
-          if (judgedRef.current) return; // already decided
+          console.log('[Sandbox] ATTACK_DETECTED, judgedRef:', judgedRef.current);
+          if (judgedRef.current) return;
           judgedRef.current = true;
+          console.log('[Sandbox] attack adjudicated as HACKED');
 
           if (verdictTimer.current) clearTimeout(verdictTimer.current);
 
@@ -145,17 +156,25 @@ export default function Sandbox({
   );
 
   useEffect(() => {
+    console.log('[Sandbox] registering message listener, attackPayload:', !!attackPayload);
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    return () => {
+      console.log('[Sandbox] removing message listener');
+      window.removeEventListener('message', handleMessage);
+    };
   }, [handleMessage]);
 
   /* Reset when code changes — player is editing */
   useEffect(() => {
+    console.log('[Sandbox] userCode changed, resetting state');
     setIsHacked(false);
     setLastAttack(null);
     setFlash(false);
     judgedRef.current = false;
-    if (verdictTimer.current) clearTimeout(verdictTimer.current);
+    if (verdictTimer.current) {
+      console.log('[Sandbox] clearing verdict timer due to userCode change');
+      clearTimeout(verdictTimer.current);
+    }
   }, [userCode]);
 
   /* Cleanup */
@@ -176,7 +195,7 @@ export default function Sandbox({
 
   return (
     <div
-      className={`flex h-full flex-col overflow-hidden rounded-lg border bg-hacker-surface transition-all duration-300 ${borderClass}`}
+      className={`flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-hacker-surface transition-all duration-300 ${borderClass}`}
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-hacker-border bg-[#0d0d0d] px-4 py-2">
@@ -212,12 +231,12 @@ export default function Sandbox({
           key={iframeKey}
           ref={iframeRef}
           srcDoc={html}
-          className="h-full w-full border-none bg-white"
+          className="min-h-0 flex-1 w-full border-none bg-white"
           title="Security Sandbox"
           sandbox="allow-scripts"
         />
       ) : (
-        <div className="flex flex-1 items-center justify-center text-sm text-gray-600">
+        <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-gray-600">
           <span className="text-center">
             安全实验沙箱
             <br />

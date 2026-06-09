@@ -127,4 +127,6 @@ export const level1: Level = {
   hint: "思考 HTML 特殊字符：`<` `>` `\"` `'` `&` 会被浏览器如何解析？尝试将它们转义为 HTML 实体。",
   vulnerabilityType: 'xss',
   difficulty: 'easy',
+  objective: '黑客正尝试通过留言板读取用户的敏感 Cookie。请完善过滤函数，确保任何输入的脚本都无法在页面上执行。',
+  protectedInfo: '`用户 Cookie`\n\n**session_id=9a2f1b...**\n\n用户的会话标识符，攻击者通过 XSS 可窃取此 Cookie 并冒充用户身份执行任意操作。',
 };

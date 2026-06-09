@@ -1,108 +1,179 @@
 import type { Level } from '@/types';
 
 /**
- * 第三关：DOM 型 XSS 进阶 — 属性注入
+ * 第三关：权限迷宫 — 越权访问 (IDOR)
  *
- * 场景：动态头像加载，URL 通过字符串拼接注入到 <img> 标签的 src 属性
- * 漏洞：只过滤了 <script> 标签，但忽略了属性注入
- * 攻击演示：x" onerror="alert(1) 闭合 src 的双引号并注入 onerror 事件
- * 防御要点：不要用 innerHTML 拼接属性，或转义引号
+ * 场景：订单查询系统，只凭 orderId 查数据，无用户归属校验
+ * 漏洞：getOrderById() 直接返回匹配的订单，未检查 userId
+ * 攻击演示：AI 传入属于用户 999 的 orderId，系统返回不该看到的订单
+ * 防御要点：查询后必须校验当前用户是否有权访问
  */
 export const level3: Level = {
-  id: 'dom-xss-advanced',
-  title: 'DOM XSS 进阶',
+  id: 'idor-challenge',
+  title: '权限迷宫：越权访问',
   description:
-    '动态头像加载功能存在属性注入漏洞。URL 通过字符串拼接注入到 <img> 标签的 src 属性中。\n\n你已学会过滤 <script> 标签，但攻击者还有更隐蔽的方式… 请修复 sanitizeUrl() 函数，彻底防御 XSS。',
+    '订单查询系统存在 IDOR 漏洞。当前登录用户 alice_sec（ID: 101），但查询接口只根据 orderId 查找数据，完全没有校验订单归属。\n\n请修复 getOrderById() 函数，阻止越权访问其他用户的订单。',
   initialCode: `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <title>动态头像加载</title>
+  <title>我的订单</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, sans-serif; background: #f0f2f5; color: #333; }
-    .container { max-width: 520px; margin: 0 auto; padding: 32px 20px; }
+    body { font-family: -apple-system, sans-serif; background: #f5f5f7; color: #1d1d1f; }
+    .container { max-width: 680px; margin: 0 auto; padding: 24px 20px; }
     h1 { font-size: 20px; display: flex; align-items: center; gap: 8px; }
-    .card { background: #fff; border-radius: 12px; margin-top: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); overflow: hidden; }
-    .card-body { padding: 24px; }
-    .avatar-wrapper { display: flex; justify-content: center; margin-bottom: 20px; }
-    .avatar-placeholder { width: 120px; height: 120px; border-radius: 50%; background: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #bbb; font-size: 13px; overflow: hidden; }
-    .avatar-placeholder img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .input-row { display: flex; gap: 8px; }
-    .input-row input { flex: 1; padding: 9px 14px; border: 1px solid #d0d5dd; border-radius: 6px; font-size: 14px; outline: none; }
-    .input-row input:focus { border-color: #7c3aed; box-shadow: 0 0 0 2px rgba(124,58,237,.15); }
-    .input-row button { padding: 9px 20px; background: #7c3aed; color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; white-space: nowrap; }
-    .input-row button:hover { background: #6d28d9; }
-    .note { font-size: 12px; color: #999; margin-top: 8px; }
-    .code-hint { background: #faf5ff; border-left: 3px solid #7c3aed; padding: 10px 14px; border-radius: 4px; font-size: 12px; color: #6b21a8; margin-bottom: 16px; }
-    .code-hint code { background: #ede9fe; padding: 1px 5px; border-radius: 3px; font-size: 11px; }
-    .status-bar { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 12px; display: none; }
-    .status-bar.error { display: block; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
-    .status-bar.success { display: block; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+    .header-sub { font-size: 13px; color: #888; margin-top: 2px; }
+    .user-badge { display: inline-flex; align-items: center; gap: 6px; background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; margin-top: 8px; }
+    .card { background: #fff; border-radius: 12px; margin-top: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
+    .card-body { padding: 20px; }
+    .search-row { display: flex; gap: 8px; margin-top: 12px; }
+    .search-row input { flex: 1; padding: 9px 14px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 14px; outline: none; }
+    .search-row input:focus { border-color: #0071e3; box-shadow: 0 0 0 2px rgba(0,113,227,.15); }
+    .search-row button { padding: 9px 22px; background: #0071e3; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+    .search-row button:hover { background: #0077ed; }
+    .order-card { border: 1px solid #e8e8ed; border-radius: 10px; padding: 16px; margin-top: 14px; }
+    .order-card h3 { font-size: 16px; margin-bottom: 8px; }
+    .order-field { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f5f5f7; font-size: 13px; }
+    .order-field:last-child { border-bottom: none; }
+    .order-field .label { color: #888; }
+    .order-field .value { font-weight: 500; }
+    .secret-tag { background: #fef2f2; color: #dc2626; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .no-result { text-align: center; color: #999; padding: 32px 0; font-size: 14px; }
+    .error-box { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-top: 12px; display: none; }
+    .my-orders { margin-top: 16px; }
+    .my-orders summary { cursor: pointer; font-size: 12px; color: #888; padding: 4px 0; }
+    .my-orders .order-item { display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    .my-orders .order-item:last-child { border-bottom: none; }
+    .my-orders .order-item:hover { background: #f8f8fa; }
+    .order-link { color: #0071e3; cursor: pointer; text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>👤 用户头像</h1>
-    <p style="color:#888;font-size:13px;margin-top:4px;">输入图片 URL，即时预览头像</p>
+    <h1>📦 我的订单</h1>
+    <div class="header-sub">查看订单详情</div>
+    <div class="user-badge">👤 alice_sec · ID: 101</div>
 
     <div class="card">
       <div class="card-body">
-        <div class="code-hint">
-          💡 当前过滤规则：只移除 <code>&lt;script&gt;</code> 标签 — 你觉得够安全吗？
+        <div class="search-row">
+          <input id="orderIdInput" type="text" placeholder="输入订单 ID (如 1、2)" />
+          <button onclick="handleViewOrder()">查询</button>
         </div>
 
-        <div class="avatar-wrapper">
-          <div id="avatarContainer" class="avatar-placeholder">
-            <span>暂无头像</span>
-          </div>
-        </div>
-
-        <div class="input-row">
-          <input id="avatarUrl" type="text" placeholder="例：https://example.com/avatar.jpg" />
-          <button onclick="loadAvatar()">加载</button>
-        </div>
-        <p class="note">支持 JPG / PNG / GIF 格式的图片链接</p>
-
-        <div id="statusBar" class="status-bar"></div>
+        <details class="my-orders">
+          <summary>我的历史订单</summary>
+          <div id="myOrdersList"></div>
+        </details>
       </div>
     </div>
+
+    <div id="resultPanel"></div>
+    <div id="errorPanel" class="error-box"></div>
   </div>
 
   <script>
     /* ============================================================
-       安全挑战：修复 sanitizeUrl()，防止属性注入
-       你已经知道过滤 <script> 标签，但攻击者还有更隐蔽的方式！
+       系统数据（不可修改）
        ============================================================ */
 
-    // 当前过滤：只移除 <script> 标签 — 完全不夠！
-    function sanitizeUrl(url) {
-      return url.replace(/<script\\s*>/gi, '').replace(/<\\/script\\s*>/gi, '');
+    var ALL_ORDERS = [
+      { id: 1, userId: 101, product: 'MacBook Pro 14"', amount: 15999, date: '2025-03-15', status: '已发货' },
+      { id: 2, userId: 101, product: 'AirPods Pro 2',  amount: 1999,  date: '2025-04-20', status: '已完成' },
+      { id: 3, userId: 999, product: '🔒 管理员秘密',    amount: 0,     date: '2025-01-01', status: '机密',
+        note: '🔥 这是超级管理员的秘密订单，包含敏感信息！普通用户绝不应看到。' },
+      { id: 4, userId: 102, product: 'iPhone 16 Pro',  amount: 8999,  date: '2025-05-10', status: '待发货' },
+      { id: 5, userId: 103, product: 'iPad Air M3',    amount: 4999,  date: '2025-06-01', status: '已完成' },
+    ];
+
+    var CURRENT_USER = { id: 101, name: 'alice_sec' };
+
+    /* ── 系统安全检测（始终执行，不可绕过） ── */
+    function __securityCheck(order) {
+      if (order && order.userId !== CURRENT_USER.id) {
+        alert('⛔ 越权访问！订单 ' + order.id + ' 属于用户 ' + order.userId + '，不属于当前用户！');
+      }
     }
 
-    function loadAvatar() {
-      var url = document.getElementById('avatarUrl').value.trim();
-      var container = document.getElementById('avatarContainer');
-      var statusBar = document.getElementById('statusBar');
+    /* ============================================================
+       安全挑战：修复 getOrderById()，防止越权访问
+       ============================================================ */
 
-      if (!url) {
-        statusBar.className = 'status-bar error';
-        statusBar.textContent = '⚠ 请输入图片 URL';
+    // ⚠ 漏洞：直接按 orderId 查找，未校验订单归属
+    function getOrderById(orderId) {
+      return ALL_ORDERS.find(function(o) { return o.id === orderId; });
+    }
+
+    /* ---------- 以下代码不建议修改 ---------- */
+
+    function handleViewOrder() {
+      var input = document.getElementById('orderIdInput');
+      var rawId = input.value.trim();
+      var orderId = parseInt(rawId, 10);
+      var resultPanel = document.getElementById('resultPanel');
+      var errorPanel = document.getElementById('errorPanel');
+
+      errorPanel.style.display = 'none';
+
+      if (isNaN(orderId) || orderId <= 0) {
+        errorPanel.textContent = '⚠ 请输入有效的订单 ID';
+        errorPanel.style.display = 'block';
         return;
       }
 
-      statusBar.className = 'status-bar';
+      var order = getOrderById(orderId);
 
-      // ⚠ 漏洞：使用 innerHTML 拼接字符串到 HTML 属性中
-      // 即使过滤了 <script>，攻击者仍可通过闭合引号注入事件处理器
-      container.innerHTML = '<img src="' + sanitizeUrl(url) + '" class="avatar" alt="用户头像">';
+      /* 系统安全检查（始终执行） */
+      __securityCheck(order);
+
+      if (order) {
+        renderOrder(order, resultPanel);
+      } else {
+        resultPanel.innerHTML = '<p class="no-result">未找到该订单</p>';
+      }
     }
 
-    /* 如果裁判脚本注入了攻击载荷，自动执行 */
+    function renderOrder(order, container) {
+      var isSecret = order.userId !== CURRENT_USER.id;
+      var html = '<div class="order-card">';
+      html += '<h3>订单 #' + order.id + ' ' + (isSecret ? '<span class="secret-tag">⚠ 非本人订单</span>' : '') + '</h3>';
+      html += '<div class="order-field"><span class="label">商品</span><span class="value">' + esc(order.product) + '</span></div>';
+      html += '<div class="order-field"><span class="label">金额</span><span class="value">¥' + order.amount + '</span></div>';
+      html += '<div class="order-field"><span class="label">日期</span><span class="value">' + order.date + '</span></div>';
+      html += '<div class="order-field"><span class="label">状态</span><span class="value">' + esc(order.status) + '</span></div>';
+      if (order.note) {
+        html += '<div class="order-field"><span class="label">备注</span><span class="value">' + esc(order.note) + '</span></div>';
+      }
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function esc(str) {
+      var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+      return String(str).replace(/[&<>"']/g, function(c) { return map[c]; });
+    }
+
+    /* 渲染当前用户的订单列表 */
+    (function renderMyOrders() {
+      var container = document.getElementById('myOrdersList');
+      var mine = ALL_ORDERS.filter(function(o) { return o.userId === CURRENT_USER.id; });
+      var html = '';
+      for (var i = 0; i < mine.length; i++) {
+        html += '<div class="order-item">' +
+          '<span class="order-link" onclick="document.getElementById(\'orderIdInput\').value=\'' + mine[i].id + '\';handleViewOrder()">#' + mine[i].id + ' ' + esc(mine[i].product) + '</span>' +
+          '<span>¥' + mine[i].amount + '</span>' +
+          '</div>';
+      }
+      container.innerHTML = html;
+    })();
+
+    /* 自动攻击：裁判脚本注入的载荷 */
     if (window.__ATTACK_PAYLOAD__) {
       setTimeout(function() {
-        document.getElementById('avatarUrl').value = window.__ATTACK_PAYLOAD__;
-        loadAvatar();
+        var payload = window.__ATTACK_PAYLOAD__;
+        document.getElementById('orderIdInput').value = payload;
+        handleViewOrder();
       }, 300);
     }
   </script>
@@ -112,99 +183,164 @@ export const level3: Level = {
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <title>动态头像加载</title>
+  <title>我的订单</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, sans-serif; background: #f0f2f5; color: #333; }
-    .container { max-width: 520px; margin: 0 auto; padding: 32px 20px; }
+    body { font-family: -apple-system, sans-serif; background: #f5f5f7; color: #1d1d1f; }
+    .container { max-width: 680px; margin: 0 auto; padding: 24px 20px; }
     h1 { font-size: 20px; display: flex; align-items: center; gap: 8px; }
-    .card { background: #fff; border-radius: 12px; margin-top: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); overflow: hidden; }
-    .card-body { padding: 24px; }
-    .avatar-wrapper { display: flex; justify-content: center; margin-bottom: 20px; }
-    .avatar-placeholder { width: 120px; height: 120px; border-radius: 50%; background: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #bbb; font-size: 13px; overflow: hidden; }
-    .avatar-placeholder img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .input-row { display: flex; gap: 8px; }
-    .input-row input { flex: 1; padding: 9px 14px; border: 1px solid #d0d5dd; border-radius: 6px; font-size: 14px; outline: none; }
-    .input-row input:focus { border-color: #7c3aed; box-shadow: 0 0 0 2px rgba(124,58,237,.15); }
-    .input-row button { padding: 9px 20px; background: #7c3aed; color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; white-space: nowrap; }
-    .input-row button:hover { background: #6d28d9; }
-    .note { font-size: 12px; color: #999; margin-top: 8px; }
-    .status-bar { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 12px; display: none; }
-    .status-bar.error { display: block; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
-    .status-bar.success { display: block; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+    .header-sub { font-size: 13px; color: #888; margin-top: 2px; }
+    .user-badge { display: inline-flex; align-items: center; gap: 6px; background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; margin-top: 8px; }
+    .card { background: #fff; border-radius: 12px; margin-top: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
+    .card-body { padding: 20px; }
+    .search-row { display: flex; gap: 8px; margin-top: 12px; }
+    .search-row input { flex: 1; padding: 9px 14px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 14px; outline: none; }
+    .search-row input:focus { border-color: #0071e3; box-shadow: 0 0 0 2px rgba(0,113,227,.15); }
+    .search-row button { padding: 9px 22px; background: #0071e3; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+    .search-row button:hover { background: #0077ed; }
+    .order-card { border: 1px solid #e8e8ed; border-radius: 10px; padding: 16px; margin-top: 14px; }
+    .order-card h3 { font-size: 16px; margin-bottom: 8px; }
+    .order-field { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f5f5f7; font-size: 13px; }
+    .order-field:last-child { border-bottom: none; }
+    .order-field .label { color: #888; }
+    .order-field .value { font-weight: 500; }
+    .secret-tag { background: #fef2f2; color: #dc2626; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .no-result { text-align: center; color: #999; padding: 32px 0; font-size: 14px; }
+    .error-box { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-top: 12px; display: none; }
+    .my-orders { margin-top: 16px; }
+    .my-orders summary { cursor: pointer; font-size: 12px; color: #888; padding: 4px 0; }
+    .my-orders .order-item { display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    .my-orders .order-item:last-child { border-bottom: none; }
+    .my-orders .order-item:hover { background: #f8f8fa; }
+    .order-link { color: #0071e3; cursor: pointer; text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>👤 用户头像</h1>
-    <p style="color:#888;font-size:13px;margin-top:4px;">输入图片 URL，即时预览头像</p>
+    <h1>📦 我的订单</h1>
+    <div class="header-sub">查看订单详情</div>
+    <div class="user-badge">👤 alice_sec · ID: 101</div>
 
     <div class="card">
       <div class="card-body">
-        <div class="avatar-wrapper">
-          <div id="avatarContainer" class="avatar-placeholder">
-            <span>暂无头像</span>
-          </div>
+        <div class="search-row">
+          <input id="orderIdInput" type="text" placeholder="输入订单 ID (如 1、2)" />
+          <button onclick="handleViewOrder()">查询</button>
         </div>
-
-        <div class="input-row">
-          <input id="avatarUrl" type="text" placeholder="例：https://example.com/avatar.jpg" />
-          <button onclick="loadAvatar()">加载</button>
-        </div>
-        <p class="note">支持 JPG / PNG / GIF 格式的图片链接</p>
-
-        <div id="statusBar" class="status-bar"></div>
+        <details class="my-orders">
+          <summary>我的历史订单</summary>
+          <div id="myOrdersList"></div>
+        </details>
       </div>
     </div>
+
+    <div id="resultPanel"></div>
+    <div id="errorPanel" class="error-box"></div>
   </div>
 
   <script>
-    /* ============================================================
-       安全版本 — 使用 DOM API 替代 innerHTML 拼接
-       ============================================================ */
+    var ALL_ORDERS = [
+      { id: 1, userId: 101, product: 'MacBook Pro 14"', amount: 15999, date: '2025-03-15', status: '已发货' },
+      { id: 2, userId: 101, product: 'AirPods Pro 2',  amount: 1999,  date: '2025-04-20', status: '已完成' },
+      { id: 3, userId: 999, product: '🔒 管理员秘密',    amount: 0,     date: '2025-01-01', status: '机密',
+        note: '🔥 这是超级管理员的秘密订单，包含敏感信息！普通用户绝不应看到。' },
+      { id: 4, userId: 102, product: 'iPhone 16 Pro',  amount: 8999,  date: '2025-05-10', status: '待发货' },
+      { id: 5, userId: 103, product: 'iPad Air M3',    amount: 4999,  date: '2025-06-01', status: '已完成' },
+    ];
 
-    // 方案 A：转义双引号（简单有效）
-    function sanitizeUrl(url) {
-      return String(url).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    var CURRENT_USER = { id: 101, name: 'alice_sec' };
+
+    function __securityCheck(order) {
+      if (order && order.userId !== CURRENT_USER.id) {
+        alert('⛔ 越权访问！订单 ' + order.id + ' 属于用户 ' + order.userId + '，不属于当前用户！');
+      }
     }
 
-    // 方案 B：使用 DOM API 创建元素（推荐，更彻底）
-    function loadAvatar() {
-      var url = document.getElementById('avatarUrl').value.trim();
-      var container = document.getElementById('avatarContainer');
-      var statusBar = document.getElementById('statusBar');
+    /* ============================================================
+       修复后：增加归属校验
+       ============================================================ */
+    function getOrderById(orderId) {
+      var order = ALL_ORDERS.find(function(o) { return o.id === orderId; });
+      // ✅ 修复：如果订单存在但不属于当前用户，拒绝访问
+      if (order && order.userId !== CURRENT_USER.id) {
+        return null; // 假装订单不存在
+      }
+      return order;
+    }
 
-      if (!url) {
-        statusBar.className = 'status-bar error';
-        statusBar.textContent = '⚠ 请输入图片 URL';
+    function handleViewOrder() {
+      var input = document.getElementById('orderIdInput');
+      var rawId = input.value.trim();
+      var orderId = parseInt(rawId, 10);
+      var resultPanel = document.getElementById('resultPanel');
+      var errorPanel = document.getElementById('errorPanel');
+
+      errorPanel.style.display = 'none';
+
+      if (isNaN(orderId) || orderId <= 0) {
+        errorPanel.textContent = '⚠ 请输入有效的订单 ID';
+        errorPanel.style.display = 'block';
         return;
       }
 
-      statusBar.className = 'status-bar';
+      var order = getOrderById(orderId);
 
-      // ✅ 安全：使用 DOM API 创建 img 元素
-      container.innerHTML = '';
-      var img = document.createElement('img');
-      img.src = url;
-      img.className = 'avatar';
-      img.alt = '用户头像';
-      img.onerror = function() {
-        statusBar.className = 'status-bar error';
-        statusBar.textContent = '⚠ 图片加载失败，请检查 URL 是否有效';
-      };
-      container.appendChild(img);
+      /* 系统安全检查（始终执行） */
+      __securityCheck(order);
+
+      if (order) {
+        renderOrder(order, resultPanel);
+      } else {
+        resultPanel.innerHTML = '<p class="no-result">未找到该订单</p>';
+      }
     }
+
+    function renderOrder(order, container) {
+      var isSecret = order.userId !== CURRENT_USER.id;
+      var html = '<div class="order-card">';
+      html += '<h3>订单 #' + order.id + ' ' + (isSecret ? '<span class="secret-tag">⚠ 非本人订单</span>' : '') + '</h3>';
+      html += '<div class="order-field"><span class="label">商品</span><span class="value">' + esc(order.product) + '</span></div>';
+      html += '<div class="order-field"><span class="label">金额</span><span class="value">¥' + order.amount + '</span></div>';
+      html += '<div class="order-field"><span class="label">日期</span><span class="value">' + order.date + '</span></div>';
+      html += '<div class="order-field"><span class="label">状态</span><span class="value">' + esc(order.status) + '</span></div>';
+      if (order.note) {
+        html += '<div class="order-field"><span class="label">备注</span><span class="value">' + esc(order.note) + '</span></div>';
+      }
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function esc(str) {
+      var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+      return String(str).replace(/[&<>"']/g, function(c) { return map[c]; });
+    }
+
+    (function renderMyOrders() {
+      var container = document.getElementById('myOrdersList');
+      var mine = ALL_ORDERS.filter(function(o) { return o.userId === CURRENT_USER.id; });
+      var html = '';
+      for (var i = 0; i < mine.length; i++) {
+        html += '<div class="order-item">' +
+          '<span class="order-link" onclick="document.getElementById(\'orderIdInput\').value=\'' + mine[i].id + '\';handleViewOrder()">#' + mine[i].id + ' ' + esc(mine[i].product) + '</span>' +
+          '<span>¥' + mine[i].amount + '</span>' +
+          '</div>';
+      }
+      container.innerHTML = html;
+    })();
 
     if (window.__ATTACK_PAYLOAD__) {
       setTimeout(function() {
-        document.getElementById('avatarUrl').value = window.__ATTACK_PAYLOAD__;
-        loadAvatar();
+        var payload = window.__ATTACK_PAYLOAD__;
+        document.getElementById('orderIdInput').value = payload;
+        handleViewOrder();
       }, 300);
     }
   </script>
 </body>
 </html>`,
-  hint: '攻击者不需要 <script> 标签也能执行 JavaScript！看看双引号在 HTML 属性中的作用——试试输入 `x" onerror="alert(1)` 看看会发生什么。防御思路：使用 createElement 替代 innerHTML，或转义引号。',
-  vulnerabilityType: 'dom-xss',
+  hint: '攻击者输入 orderId=3 看到了什么？思考：getOrderById 只做了"查找"没做"校验"。修复方法：查到的订单如果 userId 不等于当前用户，应当拒绝。',
+  vulnerabilityType: 'idor',
   difficulty: 'hard',
+  objective: '当前你以 ID 为 101 的普通用户登录。请修改代码逻辑，阻止任何人通过篡改 URL 参数查看不属于自己的订单秘密。',
+  protectedInfo: '`高管订单详情`\n\n**Order #999** — **金额: $5,000,000**\n\n公司高管的机密采购订单，普通用户无权查看。泄露可能导致内幕交易指控。',
 };

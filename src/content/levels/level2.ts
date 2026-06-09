@@ -235,4 +235,6 @@ export const level2: Level = {
   hint: '试试在 ID 输入框输入 "1 OR 1=1"，看看返回了几条记录？修复思路：使用 parseInt() 将输入转为数字，非数字输入直接拒绝。',
   vulnerabilityType: 'sqli',
   difficulty: 'medium',
+  objective: '系统存在查询注入风险。请修复搜索逻辑，确保攻击者无法通过拼接指令一次性导出所有用户的隐私数据。',
+  protectedInfo: '`核心数据库表 Users_Private_Table`\n\n包含全站 **500 名用户**的手机号、邮箱、住址等隐私数据。攻击者通过 SQL 注入可一次性全部窃取。',
 };

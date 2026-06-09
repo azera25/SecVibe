@@ -34,6 +34,11 @@ const VULN_META: Record<string, { label: string; color: string; icon: typeof Shi
     color: 'text-purple-400 border-purple-800 bg-purple-950/40',
     icon: Bug,
   },
+  idor: {
+    label: 'IDOR',
+    color: 'text-yellow-400 border-yellow-800 bg-yellow-950/40',
+    icon: Lock,
+  },
 };
 
 function getVulnMeta(type: VulnerabilityType) {
@@ -101,9 +106,9 @@ export default function Sidebar({
         <Menu size={20} />
       </button>
 
-      <aside className="hidden h-full w-64 flex-shrink-0 flex-col border-r border-hacker-border bg-hacker-bg lg:flex">
+      <aside className="hidden h-full min-h-0 w-64 flex-shrink-0 flex-col border-r border-hacker-border bg-hacker-bg lg:flex">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-hacker-border px-5 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-hacker-border px-5 py-4">
           <div className="flex items-center gap-2">
             <h2 className="text-sm tracking-widest text-gray-500 uppercase">关卡</h2>
             <button
@@ -118,7 +123,7 @@ export default function Sidebar({
         </div>
 
         {/* Level list */}
-        <nav className="flex-1 overflow-y-auto py-2">
+        <nav className="min-h-0 flex-1 overflow-y-auto py-2">
           {levels.map((level) => {
             const isActive = level.id === activeLevelId;
             const isCompleted = completedIds.includes(level.id);
